@@ -3,7 +3,7 @@ import imageCompression from 'browser-image-compression';
 import { Camera, Image as ImageIcon, CheckCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://wedding-app-j8fi.onrender.com/api';
+const API_URL = 'https://wedding-app-j8fi.onrender.com/api';
 
 function App() {
   const [uploadProgress, setUploadProgress] = useState(0);
