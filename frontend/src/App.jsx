@@ -3,7 +3,7 @@ import imageCompression from 'browser-image-compression';
 import { Camera, Image as ImageIcon, CheckCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://wedding-app-j8fi.onrender.com/api';
 
 function App() {
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -57,8 +57,14 @@ function App() {
         });
         
         if (!presignRes.ok) {
-          const errData = await presignRes.json();
-          throw new Error(errData.error || 'Failed to get upload URL');
+          const contentType = presignRes.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errData = await presignRes.json();
+            throw new Error(errData.error || 'Failed to get upload URL');
+          } else {
+            const textData = await presignRes.text();
+            throw new Error(`Server Error (${presignRes.status}): Please check backend URL. ` + textData.slice(0, 50));
+          }
         }
 
         const { uploadUrl, key, s3Url } = await presignRes.json();
