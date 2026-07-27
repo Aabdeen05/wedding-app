@@ -70,14 +70,14 @@ app.post('/api/upload-url', async (req, res) => {
 // 2. Save Metadata to PostgreSQL after successful upload
 app.post('/api/media', async (req, res) => {
   try {
-    const { s3Key, s3Url, fileType } = req.body;
+    const { s3Key, s3Url, fileType, uploaderName } = req.body;
 
     if (!s3Key || !s3Url || !fileType) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const query = 'INSERT INTO media (s3_key, s3_url, file_type) VALUES ($1, $2, $3) RETURNING id';
-    const values = [s3Key, s3Url, fileType];
+    const query = 'INSERT INTO media (s3_key, s3_url, file_type, uploader_name) VALUES ($1, $2, $3, $4) RETURNING id';
+    const values = [s3Key, s3Url, fileType, uploaderName || null];
 
     const result = await db.query(query, values);
 
@@ -85,6 +85,37 @@ app.post('/api/media', async (req, res) => {
   } catch (error) {
     console.error('Error saving media metadata:', error);
     res.status(500).json({ error: 'Failed to save media metadata' });
+  }
+});
+
+// 3. Fetch Gallery Media (Paginated)
+app.get('/api/gallery', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const offset = (page - 1) * limit;
+
+    const query = 'SELECT id, s3_url as url, file_type as "fileType", uploader_name as "uploaderName", uploaded_at as "uploadedAt" FROM media ORDER BY uploaded_at DESC LIMIT $1 OFFSET $2';
+    const values = [limit, offset];
+
+    const countQuery = 'SELECT COUNT(*) FROM media';
+
+    const [mediaResult, countResult] = await Promise.all([
+      db.query(query, values),
+      db.query(countQuery)
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      media: mediaResult.rows,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      totalItems: total
+    });
+  } catch (error) {
+    console.error('Error fetching gallery:', error);
+    res.status(500).json({ error: 'Failed to fetch gallery' });
   }
 });
 

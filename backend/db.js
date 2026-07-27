@@ -13,8 +13,10 @@ const initDb = async () => {
       s3_key VARCHAR(255) NOT NULL,
       s3_url TEXT NOT NULL,
       file_type VARCHAR(50) NOT NULL,
+      uploader_name VARCHAR(255),
       uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    ALTER TABLE media ADD COLUMN IF NOT EXISTS uploader_name VARCHAR(255);
   `;
   try {
     await pool.query(createTableQuery);
