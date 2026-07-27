@@ -340,10 +340,8 @@ function App() {
                   <video 
                     src={item.url} 
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    muted
-                    loop
+                    controls
                     playsInline
-                    autoPlay
                   />
                 ) : (
                   <img 
@@ -354,12 +352,10 @@ function App() {
                   />
                 )}
                 
-                {/* Uploader Name Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-                  <div className="flex items-center gap-2 text-sm font-['Outfit'] text-white">
-                    <User className="w-4 h-4" />
-                    <span className="truncate">{item.uploaderName || 'Anonymous'}</span>
-                  </div>
+                {/* Static Uploader Name Badge (Top Left) */}
+                <div className="absolute top-2 left-2 z-10 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5 flex items-center gap-1.5 text-xs font-['Outfit'] text-white shadow-lg border border-white/10">
+                  <User className="w-3.5 h-3.5" />
+                  <span className="truncate max-w-[120px] font-medium">{item.uploaderName || 'Anonymous'}</span>
                 </div>
               </motion.div>
             ))}
