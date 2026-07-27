@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { v4: uuidv4 } = require('uuid'); // Need to install uuid
 const db = require('./db');
@@ -95,7 +95,7 @@ app.get('/api/gallery', async (req, res) => {
     const limit = parseInt(req.query.limit) || 12;
     const offset = (page - 1) * limit;
 
-    const query = 'SELECT id, s3_url as url, file_type as "fileType", uploader_name as "uploaderName", uploaded_at as "uploadedAt" FROM media ORDER BY uploaded_at DESC LIMIT $1 OFFSET $2';
+    const query = 'SELECT id, s3_key as "s3Key", s3_url as "s3Url", file_type as "fileType", uploader_name as "uploaderName", uploaded_at as "uploadedAt" FROM media ORDER BY uploaded_at DESC LIMIT $1 OFFSET $2';
     const values = [limit, offset];
 
     const countQuery = 'SELECT COUNT(*) FROM media';
@@ -107,8 +107,23 @@ app.get('/api/gallery', async (req, res) => {
 
     const total = parseInt(countResult.rows[0].count);
 
+    // Generate Presigned GET URLs for the frontend
+    const mediaWithUrls = await Promise.all(mediaResult.rows.map(async (item) => {
+      if (item.s3Key) {
+        const command = new GetObjectCommand({
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: item.s3Key,
+        });
+        // Generate a URL valid for 1 hour (3600 seconds)
+        item.url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+      } else {
+        item.url = item.s3Url;
+      }
+      return item;
+    }));
+
     res.json({
-      media: mediaResult.rows,
+      media: mediaWithUrls,
       totalPages: Math.ceil(total / limit),
       currentPage: page,
       totalItems: total

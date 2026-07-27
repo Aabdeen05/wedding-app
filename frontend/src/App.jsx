@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import imageCompression from 'browser-image-compression';
-import { Camera, CheckCircle, Loader2, User, Image as ImageIcon } from 'lucide-react';
+import { Camera, Video, CheckCircle, Loader2, User, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = 'https://wedding-app-j8fi.onrender.com/api';
@@ -18,7 +18,8 @@ function App() {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoadingGallery, setIsLoadingGallery] = useState(false);
   
-  const cameraInputRef = useRef(null);
+  const photoInputRef = useRef(null);
+  const videoInputRef = useRef(null);
 
   // Keep-alive and initial fetch
   useEffect(() => {
@@ -55,13 +56,17 @@ function App() {
     fetchGallery(1);
   }, [fetchGallery]);
 
-  const handleCaptureClick = () => {
+  const handleCaptureClick = (type) => {
     if (!uploaderName.trim()) {
       setNameError(true);
       return;
     }
     setNameError(false);
-    cameraInputRef.current?.click();
+    if (type === 'photo') {
+      photoInputRef.current?.click();
+    } else {
+      videoInputRef.current?.click();
+    }
   };
 
   const handleFileChange = async (event) => {
@@ -71,7 +76,8 @@ function App() {
     await processAndUploadFiles(files);
     
     // Reset input
-    if (cameraInputRef.current) cameraInputRef.current.value = '';
+    if (photoInputRef.current) photoInputRef.current.value = '';
+    if (videoInputRef.current) videoInputRef.current.value = '';
   };
 
   const processAndUploadFiles = async (files) => {
@@ -224,21 +230,40 @@ function App() {
               )}
             </div>
 
-            <button 
-              onClick={handleCaptureClick}
-              disabled={isUploading}
-              className="w-full relative overflow-hidden group bg-white hover:bg-gray-100 transition-all duration-300 text-black rounded-2xl p-4 flex items-center justify-center gap-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Camera className="w-6 h-6 group-hover:scale-110 transition-transform" />
-              <span className="font-['Outfit'] font-semibold text-lg">Open Camera</span>
-            </button>
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => handleCaptureClick('photo')}
+                disabled={isUploading}
+                className="w-full relative overflow-hidden group bg-white hover:bg-gray-100 transition-all duration-300 text-black rounded-2xl p-4 flex flex-col items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Camera className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                <span className="font-['Outfit'] font-semibold text-base">Take Photo</span>
+              </button>
+              
+              <button 
+                onClick={() => handleCaptureClick('video')}
+                disabled={isUploading}
+                className="w-full relative overflow-hidden group bg-black/40 hover:bg-black/60 border border-white/10 transition-all duration-300 text-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Video className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                <span className="font-['Outfit'] font-semibold text-base">Record Video</span>
+              </button>
+            </div>
 
-            {/* Hidden Input */}
+            {/* Hidden Inputs */}
             <input 
               type="file"
-              accept="image/*,video/*"
+              accept="image/*"
               capture="environment"
-              ref={cameraInputRef}
+              ref={photoInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <input 
+              type="file"
+              accept="video/*"
+              capture="environment"
+              ref={videoInputRef}
               onChange={handleFileChange}
               className="hidden"
             />
