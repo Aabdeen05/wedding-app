@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import imageCompression from 'browser-image-compression';
-import { Camera, Video, CheckCircle, Loader2, User, Image as ImageIcon } from 'lucide-react';
+import { Camera, Video, CheckCircle, Loader2, User, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = 'https://wedding-app-j8fi.onrender.com/api';
@@ -171,6 +171,31 @@ function App() {
       alert(`Upload error: ${error.message}`);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    const passcode = window.prompt("Enter Admin Passcode to delete this media:");
+    if (!passcode) return;
+
+    try {
+      const res = await fetch(`${API_URL}/media/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-admin-key': passcode
+        }
+      });
+
+      if (res.ok) {
+        setGallery(prev => prev.filter(item => item.id !== id));
+        alert('Media deleted successfully');
+      } else {
+        const errorData = await res.json();
+        alert(`Failed to delete: ${errorData.error}`);
+      }
+    } catch (err) {
+      console.error('Error deleting media:', err);
+      alert('Error deleting media');
     }
   };
 
@@ -357,6 +382,15 @@ function App() {
                   <User className="w-3.5 h-3.5" />
                   <span className="truncate max-w-[120px] font-medium">{item.uploaderName || 'Anonymous'}</span>
                 </div>
+                
+                {/* Delete Button (Top Right) */}
+                <button 
+                  onClick={() => handleDelete(item.id)}
+                  className="absolute top-2 right-2 z-10 bg-black/60 hover:bg-red-500/80 backdrop-blur-sm rounded-full p-2 text-white shadow-lg border border-white/10 transition-colors"
+                  title="Admin Delete"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </motion.div>
             ))}
           </div>

@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { v4: uuidv4 } = require('uuid'); // Need to install uuid
 const db = require('./db');
@@ -131,6 +131,45 @@ app.get('/api/gallery', async (req, res) => {
   } catch (error) {
     console.error('Error fetching gallery:', error);
     res.status(500).json({ error: 'Failed to fetch gallery' });
+  }
+});
+// 4. Delete Media Endpoint (Protected)
+app.delete('/api/media/:id', async (req, res) => {
+  try {
+    const adminKey = req.headers['x-admin-key'];
+    if (!process.env.ADMIN_SECRET_KEY || adminKey !== process.env.ADMIN_SECRET_KEY) {
+      return res.status(403).json({ error: 'Unauthorized: Invalid Admin Key' });
+    }
+
+    const { id } = req.params;
+    
+    // Get S3 Key
+    const getQuery = 'SELECT s3_key FROM media WHERE id = $1';
+    const mediaResult = await db.query(getQuery, [id]);
+    
+    if (mediaResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Media not found' });
+    }
+    
+    const s3Key = mediaResult.rows[0].s3_key;
+    
+    // Delete from S3
+    if (s3Key) {
+      const command = new DeleteObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET_NAME,
+        Key: s3Key,
+      });
+      await s3Client.send(command);
+    }
+    
+    // Delete from DB
+    const deleteQuery = 'DELETE FROM media WHERE id = $1';
+    await db.query(deleteQuery, [id]);
+
+    res.json({ success: true, message: 'Media deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting media:', error);
+    res.status(500).json({ error: 'Failed to delete media' });
   }
 });
 
