@@ -245,13 +245,13 @@ function App() {
               <User className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Enter your name to upload..."
+                placeholder="Sign your name to leave your mark on this memory..."
                 value={uploaderName}
                 onChange={(e) => { setUploaderName(e.target.value); setNameError(false); }}
                 className={`w-full bg-black/30 border ${nameError ? 'border-red-500' : 'border-white/10'} rounded-2xl py-3 pl-10 pr-4 text-white placeholder-white/50 focus:outline-none focus:border-white/30 transition-colors font-['Outfit']`}
               />
               {nameError && (
-                <p className="text-red-400 text-xs mt-1 font-['Outfit'] pl-2">Name is required to upload.</p>
+                <p className="text-red-400 text-xs mt-1 font-['Outfit'] pl-2">Please leave your name so we know who captured this!</p>
               )}
             </div>
 
