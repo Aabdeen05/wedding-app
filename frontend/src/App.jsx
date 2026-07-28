@@ -278,7 +278,7 @@ function App() {
             {/* Hidden Inputs */}
             <input 
               type="file"
-              accept="image/*"
+              accept={/Android/i.test(navigator.userAgent) ? "image/*, capture=camera" : "image/*"}
               {...(/iPad|iPhone|iPod/.test(navigator.userAgent) ? { capture: "environment" } : {})}
               ref={photoInputRef}
               onChange={handleFileChange}
@@ -286,7 +286,7 @@ function App() {
             />
             <input 
               type="file"
-              accept="video/*"
+              accept={/Android/i.test(navigator.userAgent) ? "video/*, capture=camcorder" : "video/*"}
               {...(/iPad|iPhone|iPod/.test(navigator.userAgent) ? { capture: "environment" } : {})}
               ref={videoInputRef}
               onChange={handleFileChange}
