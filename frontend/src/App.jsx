@@ -279,7 +279,7 @@ function App() {
             <input 
               type="file"
               accept="image/*"
-              capture="environment"
+              {...(/iPad|iPhone|iPod/.test(navigator.userAgent) ? { capture: "environment" } : {})}
               ref={photoInputRef}
               onChange={handleFileChange}
               className="hidden"
@@ -287,7 +287,7 @@ function App() {
             <input 
               type="file"
               accept="video/*"
-              capture="environment"
+              {...(/iPad|iPhone|iPod/.test(navigator.userAgent) ? { capture: "environment" } : {})}
               ref={videoInputRef}
               onChange={handleFileChange}
               className="hidden"
