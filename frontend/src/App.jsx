@@ -75,6 +75,8 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [cameraError, setCameraError] = useState('');
+  const [capturedFile, setCapturedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -207,7 +209,8 @@ function App() {
       if (blob) {
         const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
         closeCamera();
-        processAndUploadFiles([file]);
+        setCapturedFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
       }
     }, 'image/jpeg', 0.95);
   };
@@ -237,7 +240,8 @@ function App() {
       const blob = new Blob(chunksRef.current, { type: mime });
       const file = new File([blob], `video_${Date.now()}.${ext}`, { type: mime });
       closeCamera();
-      processAndUploadFiles([file]);
+      setCapturedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
     };
 
     mediaRecorderRef.current = mediaRecorder;
@@ -362,6 +366,81 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#111] text-white">
+      {/* Preview Modal */}
+      <AnimatePresence>
+        {capturedFile && previewUrl && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed inset-0 z-[60] bg-black flex flex-col"
+          >
+            <div className="absolute top-0 inset-x-0 z-10 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
+              <button 
+                onClick={() => {
+                  setCapturedFile(null);
+                  URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl(null);
+                  setShowCamera(true);
+                  startCamera(facingMode, cameraMode);
+                }} 
+                className="p-3 bg-red-500/80 backdrop-blur rounded-full text-white hover:bg-red-500 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <div className="text-white font-['Outfit'] font-semibold">Preview</div>
+              <button 
+                onClick={() => {
+                  const fileToUpload = capturedFile;
+                  setCapturedFile(null);
+                  URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl(null);
+                  processAndUploadFiles([fileToUpload]);
+                }} 
+                className="p-3 bg-green-500/80 backdrop-blur rounded-full text-white hover:bg-green-500 transition-colors"
+              >
+                <CheckCircle className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 bg-black flex items-center justify-center p-4">
+              {capturedFile.type.startsWith('video/') ? (
+                <video src={previewUrl} controls autoPlay loop playsInline className="max-w-full max-h-full rounded-2xl" />
+              ) : (
+                <img src={previewUrl} alt="Preview" className="max-w-full max-h-full rounded-2xl object-contain" />
+              )}
+            </div>
+            
+            <div className="absolute bottom-0 inset-x-0 z-10 p-8 flex justify-center gap-6 bg-gradient-to-t from-black/90 to-transparent">
+               <button 
+                onClick={() => {
+                  setCapturedFile(null);
+                  URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl(null);
+                  setShowCamera(true);
+                  startCamera(facingMode, cameraMode);
+                }} 
+                className="px-8 py-4 bg-white/10 hover:bg-white/20 transition-colors border border-white/20 rounded-full font-['Outfit'] flex items-center gap-2 text-white"
+              >
+                <X className="w-5 h-5" /> Retake
+              </button>
+              <button 
+                onClick={() => {
+                  const fileToUpload = capturedFile;
+                  setCapturedFile(null);
+                  URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl(null);
+                  processAndUploadFiles([fileToUpload]);
+                }} 
+                className="px-8 py-4 bg-green-500 hover:bg-green-600 transition-colors rounded-full font-['Outfit'] font-bold flex items-center gap-2 text-white shadow-lg shadow-green-500/20"
+              >
+                <CheckCircle className="w-5 h-5" /> Upload Now
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Custom WebRTC Camera Modal */}
       <AnimatePresence>
         {showCamera && (
