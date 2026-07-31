@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import imageCompression from 'browser-image-compression';
-import { Camera, Video, CheckCircle, Loader2, User, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Camera, Video, CheckCircle, Loader2, User, Image as ImageIcon, Trash2, X, SwitchCamera } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = 'https://wedding-app-j8fi.onrender.com/api';
@@ -68,17 +68,26 @@ function App() {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoadingGallery, setIsLoadingGallery] = useState(false);
   
-  const photoInputRef = useRef(null);
-  const videoInputRef = useRef(null);
+  // Custom Camera State
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraMode, setCameraMode] = useState('photo'); // 'photo' | 'video'
+  const [facingMode, setFacingMode] = useState('environment'); // 'environment' | 'user'
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [cameraError, setCameraError] = useState('');
+  
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
 
   // Keep-alive and initial fetch
   useEffect(() => {
-    // Keep backend alive
     fetch(`${API_URL}/health`).catch(console.error);
     const interval = setInterval(() => {
       fetch(`${API_URL}/health`).catch(console.error);
-    }, 14 * 60 * 1000); // every 14 mins
-
+    }, 14 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -106,28 +115,141 @@ function App() {
     fetchGallery(1);
   }, [fetchGallery]);
 
+  // Clean up camera on unmount
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
+
+  // Timer for recording
+  useEffect(() => {
+    if (isRecording) {
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      clearInterval(timerRef.current);
+      setRecordingTime(0);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [isRecording]);
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const startCamera = async (mode = facingMode, camType = cameraMode) => {
+    setCameraError('');
+    stopCamera();
+    try {
+      const constraints = {
+        video: {
+          facingMode: mode,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: camType === 'video'
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Camera access error:", err);
+      setCameraError('Unable to access camera. Please allow permissions in your browser.');
+    }
+  };
+
   const handleCaptureClick = (type) => {
     if (!uploaderName.trim()) {
       setNameError(true);
       return;
     }
     setNameError(false);
-    if (type === 'photo') {
-      photoInputRef.current?.click();
-    } else {
-      videoInputRef.current?.click();
-    }
+    setCameraMode(type);
+    setShowCamera(true);
+    startCamera(facingMode, type);
   };
 
-  const handleFileChange = async (event) => {
-    const files = Array.from(event.target.files);
-    if (files.length === 0) return;
+  const toggleCamera = () => {
+    const newMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(newMode);
+    startCamera(newMode, cameraMode);
+  };
+
+  const closeCamera = () => {
+    stopCamera();
+    setShowCamera(false);
+    setIsRecording(false);
+  };
+
+  const takePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext('2d');
     
-    await processAndUploadFiles(files);
+    // Mirror drawing if using front camera
+    if (facingMode === 'user') {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
     
-    // Reset input
-    if (photoInputRef.current) photoInputRef.current.value = '';
-    if (videoInputRef.current) videoInputRef.current.value = '';
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        closeCamera();
+        processAndUploadFiles([file]);
+      }
+    }, 'image/jpeg', 0.95);
+  };
+
+  const startRecording = () => {
+    if (!streamRef.current) return;
+    chunksRef.current = [];
+    
+    let options = {};
+    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+        options = { mimeType: 'video/webm;codecs=vp9' };
+    } else if (MediaRecorder.isTypeSupported('video/webm')) {
+        options = { mimeType: 'video/webm' };
+    } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+        options = { mimeType: 'video/mp4' };
+    }
+
+    const mediaRecorder = new MediaRecorder(streamRef.current, options);
+    
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const mime = mediaRecorder.mimeType || 'video/webm';
+      const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(chunksRef.current, { type: mime });
+      const file = new File([blob], `video_${Date.now()}.${ext}`, { type: mime });
+      closeCamera();
+      processAndUploadFiles([file]);
+    };
+
+    mediaRecorderRef.current = mediaRecorder;
+    mediaRecorder.start();
+    setIsRecording(true);
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
   };
 
   const processAndUploadFiles = async (files) => {
@@ -163,14 +285,8 @@ function App() {
         });
         
         if (!presignRes.ok) {
-          const contentType = presignRes.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const errData = await presignRes.json();
-            throw new Error(errData.error || 'Failed to get upload URL');
-          } else {
-            const textData = await presignRes.text();
-            throw new Error(`Server Error (${presignRes.status}): Please check backend URL. ` + textData.slice(0, 50));
-          }
+          const textData = await presignRes.text();
+          throw new Error(`Server Error: ${textData.slice(0, 50)}`);
         }
 
         const { uploadUrl, key, s3Url } = await presignRes.json();
@@ -184,9 +300,7 @@ function App() {
           }
         });
 
-        if (!uploadRes.ok) {
-          throw new Error('Failed to upload file to S3');
-        }
+        if (!uploadRes.ok) throw new Error('Failed to upload file to S3');
 
         // 4. Save Metadata to DB
         const dbRes = await fetch(`${API_URL}/media`, {
@@ -207,15 +321,12 @@ function App() {
       }
 
       setUploadSuccess(true);
-      // Refresh gallery
       fetchGallery(1);
       setPage(1);
-      
       setTimeout(() => {
         setUploadSuccess(false);
         setUploadProgress(0);
       }, 5000);
-
     } catch (error) {
       console.error('Error during upload:', error);
       alert(`Upload error: ${error.message}`);
@@ -227,36 +338,97 @@ function App() {
   const handleDelete = async (id) => {
     const passcode = window.prompt("Enter Admin Passcode to delete this media:");
     if (!passcode) return;
-
     try {
       const res = await fetch(`${API_URL}/media/${id}`, {
         method: 'DELETE',
-        headers: {
-          'x-admin-key': passcode
-        }
+        headers: { 'x-admin-key': passcode }
       });
-
       if (res.ok) {
         setGallery(prev => prev.filter(item => item.id !== id));
-        alert('Media deleted successfully');
       } else {
         const errorData = await res.json();
         alert(`Failed to delete: ${errorData.error}`);
       }
     } catch (err) {
-      console.error('Error deleting media:', err);
       alert('Error deleting media');
     }
   };
 
-  const loadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchGallery(nextPage);
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
   };
 
   return (
     <div className="min-h-screen bg-[#111] text-white">
+      {/* Custom WebRTC Camera Modal */}
+      <AnimatePresence>
+        {showCamera && (
+          <motion.div 
+            initial={{ opacity: 0, y: '100%' }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed inset-0 z-50 bg-black flex flex-col"
+          >
+            {/* Top Bar */}
+            <div className="absolute top-0 inset-x-0 z-10 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
+              <button onClick={closeCamera} className="p-3 bg-white/10 backdrop-blur rounded-full text-white hover:bg-white/20">
+                <X className="w-6 h-6" />
+              </button>
+              
+              {isRecording && (
+                <div className="flex items-center gap-2 bg-red-500/20 text-red-500 px-4 py-1.5 rounded-full backdrop-blur font-['Outfit'] font-bold">
+                  <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                  {formatTime(recordingTime)}
+                </div>
+              )}
+              
+              <button onClick={toggleCamera} disabled={isRecording} className="p-3 bg-white/10 backdrop-blur rounded-full text-white hover:bg-white/20 disabled:opacity-50">
+                <SwitchCamera className="w-6 h-6" />
+              </button>
+            </div>
+
+            {cameraError ? (
+              <div className="flex-1 flex items-center justify-center p-6 text-center text-red-400 font-['Outfit']">
+                {cameraError}
+              </div>
+            ) : (
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                className="flex-1 w-full h-full object-cover bg-black"
+                style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }} // Mirror front camera preview
+              />
+            )}
+
+            {/* Bottom Controls */}
+            <div className="absolute bottom-0 inset-x-0 z-10 p-8 pb-12 flex justify-center items-center bg-gradient-to-t from-black/90 to-transparent">
+              {!cameraError && (
+                cameraMode === 'photo' ? (
+                  <button 
+                    onClick={takePhoto}
+                    className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center p-1 hover:scale-105 transition-transform"
+                  >
+                    <div className="w-full h-full bg-white rounded-full" />
+                  </button>
+                ) : (
+                  <button 
+                    onClick={isRecording ? stopRecording : startRecording}
+                    className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center p-1 hover:scale-105 transition-transform"
+                  >
+                    <div className={`w-full h-full rounded-full transition-all duration-300 ${isRecording ? 'bg-red-500 scale-75 rounded-lg' : 'bg-red-500'}`} />
+                  </button>
+                )
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Hero Section */}
       <div className="relative min-h-[70vh] bg-[url('https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=2070')] bg-cover bg-center flex items-center justify-center p-4">
         {/* Overlay to dim background */}
@@ -324,24 +496,6 @@ function App() {
                 <span className="font-['Outfit'] font-semibold text-base">Record Video</span>
               </button>
             </div>
-
-            {/* Hidden Inputs */}
-            <input 
-              type="file"
-              accept={/Android/i.test(navigator.userAgent) ? "image/*, capture=camera" : "image/*"}
-              {...(/iPad|iPhone|iPod/.test(navigator.userAgent) ? { capture: "environment" } : {})}
-              ref={photoInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <input 
-              type="file"
-              accept={/Android/i.test(navigator.userAgent) ? "video/*, capture=camcorder" : "video/*"}
-              {...(/iPad|iPhone|iPod/.test(navigator.userAgent) ? { capture: "environment" } : {})}
-              ref={videoInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-            />
           </div>
 
           {/* Progress & Success States */}
